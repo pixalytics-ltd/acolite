@@ -5,8 +5,10 @@
 ## 2024-01-25
 ## modifications: 2024-01-26 (QV) added option to extend grid in the direction of the sun
 ##                                updated determination of pixel_size, added acolite settings
+##                2024-01-31 (QV) updated grid extension, allow for 4 element extension to be provided [top, bottom, left, right]
+##                2024-02-01 (QV) check DEM size, check binary operations iteration
 
-def dem_shadow_mask_nc(ncf):
+def dem_shadow_mask_nc(ncf, return_dem = False, extend = []):
     import acolite as ac
     import numpy as np
     import dateutil.parser, pytz, scipy.ndimage
@@ -90,7 +92,8 @@ def dem_shadow_mask_nc(ncf):
     # lat1, lon1 = lat[-1, int(lat.shape[1]/2)], lon[-1, int(lat.shape[1]/2)]
     # lat2, lon2 = lat[0, int(lat.shape[1]/2)], lon[0, int(lat.shape[1]/2)]
     # paa = ac.shared.azimuth_two_points(lon1, lat1, lon2, lat2)
-    # paa
+    # if paa > 180: paa = paa-360
+    # print(paa)
 
     ## grid convergence
     gc = np.arctan(np.tan(np.radians(centre_lon) - np.radians(lon0)) * np.sin(np.radians(centre_lat)))
@@ -134,35 +137,38 @@ def dem_shadow_mask_nc(ncf):
                 extend_top = True
                 extend_left = True
 
+            ## if requested extension
+            if len(extend) == 4:
+                extend_top, extend_bottom, extend_left, extend_right = extend
+
+            ## get extended ranges
+            xrange_ = [dct['xrange'][0], dct['xrange'][1]]
+            yrange_ = [dct['yrange'][0], dct['yrange'][1]]
+
+            if extend_right:
+                xrange_[1] = dct['xrange'][1] + dct['pixel_size'][0] * xext
+            if extend_left:
+                xrange_[0] = dct['xrange'][0] - dct['pixel_size'][0] * xext
+            if extend_top:
+                yrange_[0] = dct['yrange'][0] + dct['pixel_size'][1] * yext
+            if extend_bottom:
+                yrange_[1] = dct['yrange'][1] - dct['pixel_size'][1] * yext
+
+            ## extended dimensions
+            xdim_ = int((xrange_[1]-xrange_[0]+dct['pixel_size'][0])/dct['pixel_size'][0])
+            ydim_ = int((yrange_[1]-yrange_[0]+dct['pixel_size'][1])/dct['pixel_size'][1])
+
+            ## subsetting for extended array
+            y0 = int(np.abs((dct['yrange'][0]-yrange_[0])/dct['pixel_size'][1]))
+            y1 = int(ydim_ - np.abs((dct['yrange'][1]-yrange_[1])/dct['pixel_size'][1]))
+            x0 = int(np.abs((dct['xrange'][0]-xrange_[0])/dct['pixel_size'][0]))
+            x1 = int(xdim_ - np.abs((dct['xrange'][1]-xrange_[1])/dct['pixel_size'][0]))
+
             if ac.settings['run']['verbosity'] > 3:
                 print('Extending top={} bottom={} left={} right={}'\
                         .format(extend_top, extend_bottom, extend_left, extend_right))
-
-            ## subsetting for the end
-            x0 = 0
-            x1 = lat.shape[1]
-            y0 = 0
-            y1 = lat.shape[0]
-            if extend_right:
-                xrange_ = dct['xrange'][0], dct['xrange'][1] + dct['pixel_size'][0] * xext
-                x0 = 0
-                x1 = -xext
-            if extend_left:
-                xrange_ = dct['xrange'][0] - dct['pixel_size'][0] * xext, dct['xrange'][1]
-                x0 = xext
-                x1 = lat.shape[1]+xext
-            if extend_top:
-                yrange_ = dct['yrange'][0] + dct['pixel_size'][1] * yext, dct['yrange'][1]
-                y0 = -yext
-                y1 = lat.shape[0]-yext
-            if extend_bottom:
-                yrange_ = dct['yrange'][0], dct['yrange'][1] - dct['pixel_size'][1] * yext
-                y0 = 0
-                y1 = yext
-
-            ## new dimensions
-            xdim_ = int((xrange_[1]-xrange_[0]+dct['pixel_size'][0])/dct['pixel_size'][0])
-            ydim_ = int((yrange_[1]-yrange_[0]+dct['pixel_size'][1])/dct['pixel_size'][1])
+                print('yext={} xext={}'.format(yext, xext))
+                print('ydim_={} xdim_={}'.format(ydim_, xdim_))
 
             ## update dct
             dct_ = {k:dct[k] for k in dct}
@@ -175,6 +181,11 @@ def dem_shadow_mask_nc(ncf):
             ## get extended geolocation
             lon_, lat_ = ac.shared.projection_geo(dct_)
             dem = ac.dem.dem_lonlat(lon_, lat_, source=ac.settings['run']['dem_source'])
+
+            ## test dem shape (e.g. SRTM is limited in latitude)
+            if dem.shape == ():
+                print('Could not retrieve DEM from source {}'.format(ac.settings['run']['dem_source']))
+                return
         else:
             dem = ac.dem.dem_lonlat(lon, lat, source=ac.settings['run']['dem_source'])
 
@@ -185,16 +196,26 @@ def dem_shadow_mask_nc(ncf):
 
     ## dilate erode mask?
     if ac.settings['run']['dem_shadow_mask_filter']:
-        mask_shadow_ = scipy.ndimage.binary_erosion(mask_shadow, np.ones(ac.settings['run']['dem_shadow_mask_filter_kernel']),
-                                                                 iterations = ac.settings['run']['dem_shadow_mask_erode_its'])
-        mask_shadow_ = scipy.ndimage.binary_dilation(mask_shadow_, np.ones(ac.settings['run']['dem_shadow_mask_filter_kernel']),
+        if ac.settings['run']['dem_shadow_mask_erode_its'] > 0:
+            mask_shadow = scipy.ndimage.binary_erosion(mask_shadow, np.ones(ac.settings['run']['dem_shadow_mask_filter_kernel']),
+                                                                     iterations = ac.settings['run']['dem_shadow_mask_erode_its'])
+
+        if ac.settings['run']['dem_shadow_mask_dilate_its'] > 0:
+            mask_shadow = scipy.ndimage.binary_dilation(mask_shadow, np.ones(ac.settings['run']['dem_shadow_mask_filter_kernel']),
                                                                  iterations = ac.settings['run']['dem_shadow_mask_dilate_its'])
 
         ## smooth mask?
-        #mask_shadow_ = scipy.ndimage.gaussian_filter(mask_shadow_, 1, mode='reflect')
+        #mask_shadow = scipy.ndimage.gaussian_filter(mask_shadow, 1, mode='reflect')
 
         ## mask mask
-        shade = np.ma.masked_where(mask_shadow_ == 0, mask_shadow_)
+        shade = np.ma.masked_where(mask_shadow == 0, mask_shadow)
+
+    ## return dem
+    if (return_dem):
+        if ac.settings['run']['dem_shadow_mask_extend']:
+            return(shade, dem, lon_, lat_, y0, y1, x0, x1)
+        else:
+            return(shade, dem, lon, lat)
 
     ## crop if image was extended
     if ac.settings['run']['dem_shadow_mask_extend']: shade = shade[y0:y1,x0:x1]
