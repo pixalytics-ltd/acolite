@@ -51,7 +51,7 @@ data/GEO/SEVIRI/*.nc
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.ipynb_checkpoints/
 #--------------------------------------------------------------------
 # Specific to Mac
 

@@ -70,7 +70,7 @@ def download(urls, scenes = [], output = None, auth = None, auth_url = None, net
 
         ## local files
         lfile = '{}/{}'.format(output, scene)
-        zfile = '{}/{}.zip'.format(output, scene[0:scene.find('.')])
+        zfile = '{}/{}.SAFE.zip'.format(output, scene[0:scene.find('.')])
 
         ## download if we don't have the scene
         if (override | (not os.path.exists(lfile)) & (not os.path.exists(zfile))):

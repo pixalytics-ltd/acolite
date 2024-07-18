@@ -12,7 +12,7 @@ def query(scene = None, collection = None, product = None,
                cloud_cover = None, tile = None, processor_version = None, ## S2
                bright_cover = None, timeliness = None, ## S3
                verbosity = 1,
-               max_results = 1000, odata_url = None, attributes = False):
+               max_results = 1000, odata_url = None, attributes = False, level2 = False):
 
     import os, requests, json
     import dateutil.parser, datetime
@@ -26,11 +26,17 @@ def query(scene = None, collection = None, product = None,
     if scene is not None:
         if ('MSIL1C' in scene) | (scene[0:3] in ['S2A', 'S2B']):
             collection = "SENTINEL-2"
-            product = "S2MSI1C" ## S2MSI1C for Level 1 MSI data
+            if level2:
+                product = "S2MSI2A" # Level 2
+            else:
+                product = "S2MSI1C" ## S2MSI1C for Level 1 MSI data
 
         if ('SEN3' in scene) | (scene[0:3] in ['S3A', 'S3B']):
             collection = "SENTINEL-3"
-            product = scene[4:15] ## OL_1_EFR___ for Level 1 full resolution OLCI data
+            if level2:
+                product = "OL_2_WFR___"                
+            else:
+                product = scene[4:15] ## OL_1_EFR___ for Level 1 full resolution OLCI data
 
     ## if scene is not given we need at least collection and product info
     if (collection is None):
@@ -40,10 +46,16 @@ def query(scene = None, collection = None, product = None,
     if (product is None):
         ## use defaults
         if collection == 'SENTINEL-2':
-            product = "S2MSI1C"
+            if level2:
+                product = "S2MSI2A" # Level 2
+            else:
+                product = "S2MSI1C" ## S2MSI1C for Level 1 MSI data
             if verbosity > 0: print('Using default product {} for {}'.format(product, collection))
         if collection == 'SENTINEL-3':
-            product = "OL_1_EFR___"
+            if level2:
+                product = "OL_2_WFR___"
+            else:
+                product = "OL_1_EFR___"
             if verbosity > 0: print('Using default product {} for {}'.format(product, collection))
         if (product is None):
             print('Please provide product (e.g. S2MSI1C or OL_1_EFR___)  for query without scene identifier')
