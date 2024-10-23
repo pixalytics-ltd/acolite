@@ -11,6 +11,7 @@ def query(scene = None, collection = None, product = None,
                start_date = None, end_date = None,  roi = None,
                cloud_cover = None, tile = None, processor_version = None, ## S2
                bright_cover = None, timeliness = None, ## S3
+               slstr = False, ## SLSTR
                verbosity = 1,
                max_results = 1000, odata_url = None, attributes = False, level2 = False):
 
@@ -33,7 +34,9 @@ def query(scene = None, collection = None, product = None,
 
         if ('SEN3' in scene) | (scene[0:3] in ['S3A', 'S3B']):
             collection = "SENTINEL-3"
-            if level2:
+            if slstr:
+                product = "SL_1_RBT___"                                
+            elif level2:
                 product = "OL_2_WFR___"                
             else:
                 product = scene[4:15] ## OL_1_EFR___ for Level 1 full resolution OLCI data
@@ -52,7 +55,9 @@ def query(scene = None, collection = None, product = None,
                 product = "S2MSI1C" ## S2MSI1C for Level 1 MSI data
             if verbosity > 0: print('Using default product {} for {}'.format(product, collection))
         if collection == 'SENTINEL-3':
-            if level2:
+            if slstr:
+                product = "SL_1_RBT___"                                
+            elif level2:
                 product = "OL_2_WFR___"
             else:
                 product = "OL_1_EFR___"
