@@ -176,12 +176,16 @@ def identify_bundle(bundle, input_type = None, output = None):
 
         ################
         ## CHRIS
-        try:
-            gains, mode_info = ac.chris.vdata(bundle)
+        files = glob.glob('{}/{}'.format(bundle,'*.tif'))
+        if 'CHRIS' in files[0]:
             input_type = 'CHRIS'
-            break ## exit loop
-        except:
-            pass ## continue to next sensor
+        else:
+            try:
+                gains, mode_info = ac.chris.vdata(bundle)
+                input_type = 'CHRIS'
+                break ## exit loop
+            except:
+                pass ## continue to next sensor
         ## end CHRIS
         ################
 
